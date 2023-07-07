@@ -3,7 +3,9 @@ package palm2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/raghvenders/generative-ai-go/internal/restclient"
 )
@@ -36,8 +38,7 @@ type Client struct {
 	apiKey string
 }
 
-/*
-func NewPalm() (Client, error) {
+func NewPalm() (*Client, error) {
 
 	token := os.Getenv(restclient.Google_api_key)
 
@@ -74,9 +75,8 @@ func NewPalm() (Client, error) {
 		}(JoinErrs)
 	}
 
-	return restclient.New(url, token, model)
+	return &Client{apiKey: token}, nil
 }
-*/
 
 func New(apiKey string) *Client {
 	return &Client{apiKey: apiKey}
