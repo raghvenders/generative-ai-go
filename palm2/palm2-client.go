@@ -3,16 +3,16 @@ package palm2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/raghvenders/generative-ai-go/internal/restclient"
 )
 
 var (
-	JoinErrs             = make([]error, 0, 1)
-	ErrMissingPalmAPIKey = errors.New("ENV : PALM API key is missing. Kindly provide the key with env variable - GOOGLE_API_KEY")
+	JoinErrs             = &MultipleErrors{errs: make([]error, 0, 1)}
+	ErrMissingPalmAPIKey = errors.New("A")
 )
 
 type GenerativeModels struct {
@@ -35,69 +35,85 @@ type ModelsListResponse struct {
 }
 
 type Client struct {
-	apiKey string
+	apiKey  string
+	model   string
+	baseURL string
+}
+
+type MultipleErrors struct {
+	errs []error
+}
+
+func (e *MultipleErrors) Error() string {
+	var s strings.Builder
+	for _, err := range e.errs {
+		s.WriteString(err.Error())
+	}
+	return s.String()
+}
+
+func (e *MultipleErrors) Unwrap() []error {
+	return e.errs
 }
 
 func NewPalm() (*Client, error) {
 
-	token := os.Getenv(restclient.Google_api_key)
+	var token string
+	if os.Getenv(restclient.Google_api_key) != restclient.EMPTY {
+		token = os.Getenv(restclient.Google_api_key)
+	}
 
 	if token == restclient.EMPTY {
-		//return nil, ErrMissingPalmAPIKey
-		JoinErrs = append(JoinErrs, ErrMissingPalmAPIKey)
+		JoinErrs.errs = append(JoinErrs.errs, ErrMissingPalmAPIKey)
 	}
 
 	url := os.Getenv(restclient.Palm2_api_url)
 
 	if url == restclient.EMPTY {
-		log.Printf("Default : Google PaLM2 Url is missing. Using default url : %s", restclient.HyperLink(restclient.PALM2_GENERATIVE_URL, restclient.PALM2_GENERATIVE_URL))
+		log.Printf("Default : Google PaLM2 Url is missing. Using default url : %v", restclient.HyperLink(restclient.PALM2_GENERATIVE_URL, restclient.PALM2_GENERATIVE_URL))
 		url = restclient.PALM2_GENERATIVE_URL
 	}
 
-	model := os.Getenv(restclient.Google_text_model)
-
-	if model == restclient.EMPTY {
-		log.Printf("Default : Google PaLM2 Model is missing. Using default Model : %s", restclient.GOOGLE_BISON_MODEL)
-		model = restclient.GOOGLE_BISON_MODEL
+	if len(JoinErrs.errs) > 0 {
+		return nil, JoinErrs
 	}
 
-	if len(JoinErrs) > 0 {
-		return nil, func(e []error) error {
-			var b []byte
-			for i, err := range e {
-				if i > 0 {
-					b = append(b, '\n')
-				}
-				b = append(b, err.Error()...)
-			}
-			return fmt.Errorf(string(b))
-
-		}(JoinErrs)
-	}
-
-	return &Client{apiKey: token}, nil
+	return &Client{apiKey: token, baseURL: url}, nil
 }
 
+/*
 func New(apiKey string) *Client {
 	return &Client{apiKey: apiKey}
 }
+*/
 
-func (rc *Client) ListModels() (*ModelsListResponse, error) {
+func (rc *Client) ListModels(queryParams ...string) (*ModelsListResponse, error) {
 	var err error
 
 	listModels := &ModelsListResponse{}
 
+	var params map[string]any
+
+	if len(queryParams)%2 != 0 {
+		log.Printf("Ignoring Query Params as it has to be >= 2 and should be even :  %d", len(queryParams))
+	} else {
+		params := map[string]any{}
+		for i := 0; i < len(queryParams); i += 2 {
+			params[queryParams[i]] = queryParams[i+1]
+		}
+	}
+
 	resErr := restclient.NewRestBuilder().
-		WithBaseUrl("https://generativelanguage.googleapis.com/v1beta2/").
-		WithPathParams("models").WithQueryParams(map[string]any{"key": rc.apiKey}).
+		WithBaseUrl(rc.baseURL).
+		WithHeaders(map[string][]string{"x-goog-api-key": {rc.apiKey}}).
+		WithPathParams("models").
+		WithQueryParams(params).
 		ResultJSON(listModels).
 		ResultError(&err).Do(context.Background())
 
 	if resErr != nil {
 		return nil, resErr
 	}
-
-	log.Printf("%+v", *listModels)
 
 	return listModels, nil
 }

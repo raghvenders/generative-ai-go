@@ -9,7 +9,7 @@ const (
 	EMPTY             = ""
 
 	//Experimental Beta values
-	PALM2_GENERATIVE_URL = "https://generativelanguage.googleapis.com/v1beta2/models"
+	PALM2_GENERATIVE_URL = "https://generativelanguage.googleapis.com/v1beta2/"
 	GOOGLE_BISON_MODEL   = "text-bison-001"
 )
 

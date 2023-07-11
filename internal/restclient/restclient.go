@@ -16,6 +16,7 @@ type (
 		baseUrl         string
 		paths           string
 		params          string
+		headers         map[string][]string
 		client          *http.Client
 		errorResponse   ResponseHandler
 		responseHandler ResponseHandler
@@ -50,7 +51,16 @@ func (rb *RestBuilder) WithPathParams(format string, values ...any) *RestBuilder
 	return rb
 }
 
+func (rb *RestBuilder) WithHeaders(headers map[string][]string) *RestBuilder {
+	rb.headers = headers
+	return rb
+}
+
 func (rb *RestBuilder) WithQueryParams(params map[string]any) *RestBuilder {
+
+	if params == nil {
+		return rb
+	}
 	var query strings.Builder
 	for k, v := range params {
 
@@ -63,7 +73,10 @@ func (rb *RestBuilder) WithQueryParams(params map[string]any) *RestBuilder {
 			log.Fatal("URL: Unkown format of query params. It has to be either ~Int or String")
 		}
 	}
+
 	rb.params = strings.TrimSuffix(query.String(), "&")
+
+	rb.params = "?" + rb.params
 
 	return rb
 }
@@ -100,10 +113,14 @@ func (rb *RestBuilder) ResultError(v any) *RestBuilder {
 }
 
 func (rb *RestBuilder) Do(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rb.baseUrl+rb.paths+"?"+rb.params, nil)
+
+	finalUrl := rb.baseUrl + rb.paths + rb.params
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, finalUrl, nil)
 	if err != nil {
 		return err
 	}
+
+	req.Header = rb.headers
 
 	if rb.client == nil {
 		rb.client = http.DefaultClient
