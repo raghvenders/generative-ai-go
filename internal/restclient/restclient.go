@@ -17,6 +17,7 @@ type (
 		paths           string
 		params          string
 		headers         map[string][]string
+		body            io.ReadCloser
 		client          *http.Client
 		errorResponse   ResponseHandler
 		responseHandler ResponseHandler
@@ -53,6 +54,11 @@ func (rb *RestBuilder) WithPathParams(format string, values ...any) *RestBuilder
 
 func (rb *RestBuilder) WithHeaders(headers map[string][]string) *RestBuilder {
 	rb.headers = headers
+	return rb
+}
+
+func (rb *RestBuilder) WithRawBody(body string) *RestBuilder {
+	rb.body = io.NopCloser(strings.NewReader(body))
 	return rb
 }
 
@@ -97,6 +103,20 @@ func (rb *RestBuilder) ResultJSON(v any) *RestBuilder {
 	return rb
 }
 
+func (rb *RestBuilder) ResultRaw(v *string) *RestBuilder {
+	rawResponse := func(res *http.Response) error {
+		var buf strings.Builder
+		_, err := io.Copy(&buf, res.Body)
+		if err == nil {
+			*v = buf.String()
+		}
+		return err
+	}
+
+	rb.responseHandler = rawResponse
+	return rb
+}
+
 func (rb *RestBuilder) ResultError(v any) *RestBuilder {
 	formatError := func(res *http.Response) error {
 		body, err := io.ReadAll(res.Body)
@@ -112,15 +132,16 @@ func (rb *RestBuilder) ResultError(v any) *RestBuilder {
 	return rb
 }
 
-func (rb *RestBuilder) Do(ctx context.Context) error {
+func (rb *RestBuilder) Do(ctx context.Context, methods string) error {
 
 	finalUrl := rb.baseUrl + rb.paths + rb.params
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, finalUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, methods, finalUrl, nil)
 	if err != nil {
 		return err
 	}
 
 	req.Header = rb.headers
+	req.Body = rb.body
 
 	if rb.client == nil {
 		rb.client = http.DefaultClient

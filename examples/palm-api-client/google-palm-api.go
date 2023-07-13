@@ -7,14 +7,20 @@ import (
 )
 
 func main() {
-	res, err := palm2.NewPalm()
+	palm2, err := palm2.NewPalm()
 	if err != nil {
-		log.Fatalf("Error Response %v", err)
+		log.Fatalf("Unable to Create Palm2 Client : %v", err)
 	}
 
-	models, err := res.ListModels()
+	models, err := palm2.ListModels()
 	if err != nil {
 		log.Fatalf("Error Response %v", err)
 	}
-	log.Printf("List Models : \n %+v", models)
+	log.Printf("List Models : %+v \n", models)
+
+	res, err := palm2.GenerateText("Hello")
+	if err != nil {
+		log.Fatalf("Error Response %v", err)
+	}
+	log.Printf("Response : %+v \n", res)
 }
